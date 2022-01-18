@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Youtube Downloader</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        --primary-color: #009688;
+        --primary-color-dark: #00796B;
+        --primary-color-light: #B2DFDB;
+        --accent-color: #7C4DFF;
+        --danger-color: #ef5350;
+        --danger-color-dark: #c62828;
+      }
+
+      @font-face {
+        font-family: Barlow-Light;
+        src: url('./Barlow-Light.ttf');
+      }
+
+      @font-face {
+        font-family: Barlow;
+        src: url('./Barlow-Regular.ttf');
+      }
+
+      body {
+        margin: 0;
+        background-color: #222;
+        font-family: 'Barlow', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      #app {
+        width: calc(100% - 16px);
+        height: calc(100vh - 16px);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 8px;
+      }
+
+      #actions-panel {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+      }
+
+      #status-panel, #download-panel {
+        border: 2px solid var(--primary-color);
+        border-radius: 2px;
+        display: flex;
+        margin: 8px auto;
+        max-width: 1200px;
+        width: calc(100% - 16px);
+      }
+
+      #status-panel > #status-header {
+        background-color: var(--primary-color);
+        padding: 8px 16px;
+        font-size: 2em;
+        font-family: Barlow-Light;
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+      }
+
+      #status-panel > #status-content {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 40vh;
+      }
+
+      #status-panel > #status-content > #current-panel {
+        border: 1px solid var(--primary-color);
+        padding: 8px;
+        color: #FFF;
+        display: flex;
+        flex-direction: row;
+      }
+
+      #progress-bar {
+        flex: 2 2 0;
+        border: 1px solid #FFF;
+        position: relative;
+      }
+
+      #progress-bar > #progress-bar-inner {
+        width: 100%;
+        height: 100%;
+        min-height: 1em;
+        position: absolute;
+        left: 0;
+        top: 0;
+        background-color: var(--primary-color-dark);
+        transition: width 0.2s linear;
+      }
+
+      #progress-bar > #progress-bar-text {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      #status-panel > #status-content > #queue-panel {
+        flex: 1 1 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        max-height: 70vh;
+        overflow-y: scroll;
+      }
+
+      .queue-job {
+        border: 2px solid #FFF;
+        border-radius: 2px;
+        padding: 4px;
+        text-align: center;
+        color: #FFF;
+        display: flex;
+        flex-direction: row;
+        margin: 8px;
+        max-height: 10em;
+      }
+
+      .queue-job > div:first-child {
+        margin: 4px 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .queue-job > div:first-child > img {
+        height: 3em;
+      }
+
+      .queue-job > div:nth-child(2) {
+        overflow-y: scroll;
+        overflow-x: hidden;
+        word-break: break-all;
+        max-height: 5em;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        margin: 0 8px;
+        padding: 1em 0;
+        flex: 1 1 0;
+      }
+
+      .queue-job > div:last-child {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .queue-job > div:nth-child(2)::-webkit-scrollbar { width: 4px; }
+      .queue-job > div:nth-child(2)::-webkit-scrollbar-thumb { background: var(--primary-color-dark); border-radius: 2px;}
+      #status-panel > #status-content > #queue-panel::-webkit-scrollbar { width: 4px; }
+      #status-panel > #status-content > #queue-panel::-webkit-scrollbar-thumb { background: var(--primary-color-dark); border-radius: 2px;}
+
+      #download-panel, #thumbnail-panel {
+        color: #FFF;
+        text-align: center;
+        flex-direction: column;
+        border: 2px solid var(--primary-color);
+        max-width: 800px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      #download-panel > #download-header, #thumbnail-panel > #thumbnail-header {
+        background-color: var(--primary-color);
+        padding: 8px;
+        color: #000;
+        font-size: 1.2em;
+      }
+
+      #download-panel > #download-contents, #thumbnail-panel > #thumbnail-contents {
+        padding: 8px;
+      }
+
+      #app.download-mode > #actions-panel, #app.thumbnail-mode > #actions-panel { display: none; }
+      #app:not(.download-mode) > #download-panel { display: none; }
+      #app:not(.thumbnail-mode) > #thumbnail-panel { display: none; }
+
+      #thumbnail-preview {
+        display: none;
+        max-width: 300px;
+        max-height: 300px;
+        object-fit: contain;
+        width: 100%;
+        height: 100%;
+        border: 1px solid #FFF;
+      }
+
+      #thumbnail-preview.show { 
+        display: block;
+      }
+
+      .reactive-group {
+        display: flex;
+        flex-direction: row;
+      }
+
+      .reactive-group.reverse {
+        flex-direction: column;
+      }
+
+      .form-group { margin: 8px 0 }
+      .form-group > div:first-child { margin: 0 8px; }
+      .form-group > *:last-child { flex: 1 1 0; }
+      .inp-text, .inp-select {
+        padding: 4px;
+        background: none;
+        border: 1px solid #FFF;
+        border-radius: 2px;
+        color: #FFF;
+      }
+
+      .inp-select > option {
+        color: #000;
+      }
+
+      .btn {
+        padding: 8px;
+        margin: 0 8px;
+        border-radius: 2px;
+        border: none;
+        transition: background-color 0.3s linear;
+      }
+
+      .btn:hover {
+        color: #FFF;
+      }
+      
+      .btn.btn-primary { background-color: var(--primary-color); }
+      .btn.btn-primary:hover { background-color: var(--primary-color-dark); }
+      .btn.btn-danger { background-color: var(--danger-color); }
+      .btn.btn-danger:hover { background-color: var(--danger-color-dark); }
+
+      @media(max-width: 768px) {
+        #status-panel, #action-panels, #download-panel { width: 100%; }
+        #status-panel { flex-direction: column; }
+        #status-panel > #status-header { flex-direction: row; }
+        #status-panel > #status-content > #queue-panel { min-height: 50vh;}
+        #status-panel > #status-content > #current-panel { flex-direction: column; }
+        #status-panel > #status-content > #current-panel > div:last-child { margin-top: 8px }
+
+        #progress-bar { flex: 0 0 2em; }
+
+        .reactive-group { flex-direction: column; }
+        .reactive-group.reverse { flex-direction: row; }
+      }
+
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="status-panel">
+        <div id="status-header">Jobs</div>
+        <div id="status-content">
+          <div id="current-panel">
+            <div style="display: flex; flex-direction: column; text-align: center; flex: 1 1 0">
+              <div>Current Job: </div>
+              <div id="progress-current-job">None</div>
+            </div>
+            <div id="progress-bar">
+              <div id="progress-bar-inner"></div>
+              <div id="progress-bar-text"></div>
+            </div>
+          </div>
+          <div id="queue-panel">
+          </div>
+        </div>
+        
+      </div>
+      <div id="actions-panel">
+        <button class="btn btn-primary" id="btn-queue-download">Youtube Download</button>
+        <button class="btn btn-primary" id="btn-add-thumbnail">Add Thumbnail</button>
+      </div>
+      <div id="download-panel">
+        <div id="download-header">Youtube Download</div>
+        <div id="download-contents">
+          <div class="reactive-group form-group">
+            <div>Youtube URL / Video ID</div>
+            <input id="inp-download-data" type="text" class="inp-text"></input>
+          </div>
+          <div class="reactive-group form-group">
+            <div>Download Format</div>
+            <select id="inp-download-format" class="inp-select">
+              <option>MP3</option>
+              <option>M4A</option>
+            </select>
+          </div>
+          <div class="reactive-group form-group">
+            <div>Quality</div>
+            <input id="inp-quality" type="number" class="inp-text" value="1" min="1" max="9" step="1" />
+          </div>
+          <button id="btn-download-submit" class="btn btn-primary" style="margin-top: 8px">Download</button>
+          <button id="btn-download-cancel" class="btn btn-primary" style="margin-top: 8px">Cancel</button>
+        </div>
+      </div>
+      <div id="thumbnail-panel">
+        <div id="thumbnail-header">Thumbnail</div>
+        <div id="thumbnail-contents">
+          <div class="reactive-group form-group">
+            <div>Audio File</div>
+            <input id="inp-thumbnail-data" type="file" class="inp-text"></input>
+          </div>
+          <div class="reactive-group form-group">
+            <div>Audio Format</div>
+            <select id="inp-thumbnail-format" class="inp-select">
+              <option>MP3</option>
+              <option>M4A</option>
+            </select>
+          </div>
+          <div class="reactive-group form-group">
+            <div>Thumbnail</div>
+            <input id="inp-thumbnail-image" type="file" class="inp-text" />
+            <img id="thumbnail-preview" />
+          </div>
+          <button id="btn-thumbnail-submit" class="btn btn-primary" style="margin-top: 8px">Add</button>
+          <button id="btn-thumbnail-cancel" class="btn btn-primary" style="margin-top: 8px">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const ytVidIdRegex = /^([^"&?\/\s]{11})$/gi;
+      const ytURLRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/mgi;
+      let socket;
+      let streams = {};
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('btn-queue-download').addEventListener('click', () => {
+          document.getElementById('app').classList.add('download-mode');
+        });
+
+        document.getElementById('btn-download-cancel').addEventListener('click', () => {
+          document.getElementById('app').classList.remove('download-mode');
+        });
+
+        document.getElementById('btn-download-submit').addEventListener('click', () => {
+          const url = document.getElementById('inp-download-data').value;
+          const format = document.getElementById('inp-download-format').selectedIndex + 1;
+          const quality = document.getElementById('inp-quality').value;
+          let vid, dlUrl;
+
+          if (url.match(ytURLRegex)) {
+            vid = ytURLRegex.exec(url)[1];
+          } else if (url.match(ytVidIdRegex)) {
+            console.log('case 2');
+            vid = url;
+          } else {
+            alert('Not a valid Youtube Link or Video ID');
+            return;
+          }
+
+          netSubmitDownloadJob(vid, format, quality);
+        });
+
+        document.getElementById('inp-download-format').addEventListener('change', (evt) => {
+          const min = evt.target.selectedIndex === 0 ? 1 : 0.1;
+          const max = evt.target.selectedIndex === 0 ? 9 : 2;
+          const step = evt.target.selectedIndex === 0 ? 1 : 0.1;
+
+          document.getElementById('inp-quality').min = min;
+          document.getElementById('inp-quality').max = max;
+          document.getElementById('inp-quality').step = step;
+          document.getElementById('inp-quality').value = 1;
+        });
+
+        document.getElementById('inp-quality').addEventListener('change', (evt) => {
+          if (evt.target.value < evt.target.min) {
+            evt.target.value = evt.target.min;
+          } else if (evt.target.value > evt.target.max) {
+            evt.target.value = evt.target.max;
+          }
+        });
+
+        document.getElementById('btn-add-thumbnail').addEventListener('click', () => {
+          document.getElementById('app').classList.add('thumbnail-mode');
+        });
+
+        document.getElementById('btn-thumbnail-cancel').addEventListener('click', () => {
+          document.getElementById('app').classList.remove('thumbnail-mode');
+        });
+
+        const reader = new FileReader();
+        document.getElementById('inp-thumbnail-image').addEventListener('change', (evt) => {
+          const img = document.getElementById('thumbnail-preview');
+          if (evt.target.files.length > 0) {
+            reader.onload = () => {
+              const dataURL = reader.result;
+              img.src = dataURL;
+              img.classList.add('show');
+            };
+
+            reader.readAsDataURL(evt.target.files[0]);
+          } else {
+            if (img.classList.contains('show')) {
+              img.classList.remove('show');
+            }
+          }
+        });
+
+        document.getElementById('btn-thumbnail-submit').addEventListener('click', async () => {
+          const dataInp = document.getElementById('inp-thumbnail-data');
+          const imgInp = document.getElementById('inp-thumbnail-image');
+          const format = document.getElementById('inp-thumbnail-format').selectedIndex + 1;
+
+          if (dataInp.files.length <= 0 || imgInp.files.length <= 0) {
+            alert('Files not selected');
+            return;
+          }
+
+          console.log('submitting')
+          netSubmitThumbnailJob(dataInp.files[0], format, imgInp.files[0]);
+        });
+
+        socket = io();
+        netAttachEvents();
+      });
+
+      function readFile(blob) {
+        return new Promise((resolve) => {
+          const r = new FileReader();
+          r.onload = () => {
+            const blob = r.result;
+            resolve(blob);
+          };
+
+          r.readAsArrayBuffer(blob);
+        });
+      }
+
+      function UIAddToQueue(id, type, data, state, result) {
+        const container = document.createElement('div');
+        const imgContainer = document.createElement('div');
+        const img = document.createElement('img');
+        const text = document.createElement('div');
+        const actionsDiv = document.createElement('div');
+
+        container.className = 'queue-job';
+        img.setAttribute('src', type === 1 ? 'download.svg' : 'download.svg');
+        text.textContent = data;
+        if (state === 1) {
+          actionsDiv.textContent = 'Waiting';
+        } else if (state === 2) {
+          actionsDiv.textContent = 'Processing';
+        } else if (state === 3) {
+          const button = document.createElement('button');
+          button.className = 'btn btn-primary';
+          button.textContent = 'Download';
+          actionsDiv.appendChild(button);
+          button.onclick = () => {
+            window.open(result.url, '_blank');
+          };
+        }
+        const delbutton = document.createElement('button');
+        delbutton.className = 'btn btn-danger';
+        delbutton.style.marginTop = '4px';
+        delbutton.textContent = 'Delete';
+        delbutton.onclick = () => netRemoveJob(id);
+        actionsDiv.appendChild(delbutton);
+
+        imgContainer.appendChild(img);
+        container.appendChild(imgContainer);
+        container.appendChild(text);
+        container.appendChild(actionsDiv);
+
+        document.getElementById('queue-panel').appendChild(container);
+      }
+
+      function UIClearQueue() {
+        const container = document.getElementById('queue-panel');
+        while (container.lastChild) container.removeChild(container.lastChild);
+      }
+
+      function UIUpdateProgress(progress) {
+        document.getElementById('progress-bar-inner').style.width = `${progress}%`;
+      }
+
+      function UIUpdateProgressText(text) {
+        document.getElementById('progress-bar-text').textContent = text;
+      }
+
+      function UIUpdateCurrentJob(job) {
+        document.getElementById('progress-current-job').textContent = job;
+      }
+
+      function netAttachEvents() {
+        socket.on('update-queue', (queue) => {
+          console.log(queue);
+          UIClearQueue();
+
+          queue.forEach(x => {
+            UIAddToQueue(x.id, x.type, x.data, x.state, x.result);
+          });
+        });
+
+        socket.on('update-current-job', (job) => {
+          UIUpdateCurrentJob(job);
+        });
+
+        socket.on('update-current-progress', (state, progress) => {
+          UIUpdateProgressText(state);
+          UIUpdateProgress(progress);
+        });
+
+        socket.on('submit-job-reject', () => {
+          alert('Server rejected the job');
+        });
+      }
+      
+      function netSubmitDownloadJob(videoId, outFormat, quality) {
+        socket.emit('submit-job', 1, {
+          vid: videoId,
+          format: outFormat,
+          quality,
+        });
+      }
+
+      function netSubmitThumbnailJob(data, format, thumbnail) {
+        const formData = new FormData();
+
+        formData.append('data', data);
+        formData.append('format', format);
+        formData.append('thumbnail', thumbnail);
+
+        fetch('/submit-job', {
+          method: 'POST',
+          body: formData,
+        });
+      }
+
+      function netRemoveJob(jobId) {
+        socket.emit('delete-job', jobId);
+      }
+    </script>
+  </body>
+</html>
